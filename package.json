@@ -1,0 +1,20 @@
+{
+  "name": "JPAKE.js",
+  "main": "JPAKE.js",
+  "author": "Ireneu Pla",
+  "description": "Javascript implementation of the JPAKE protocol for Node and the browser.",
+  "repository": "https://github.com/ireneu/JPAKE.js",
+  "bugs": "https://github.com/ireneu/JPAKE.js/issues",
+  "keywords": [
+    "JPAKE",
+    "J-PAKE",
+    "Password",
+    "Augmented",
+    "Key",
+    "Exchange",
+    "Juggling",
+    "Crypto"
+  ],
+  "license": "MIT",
+  "version": "0.1.0"
+}
