@@ -1,5 +1,5 @@
 {
-  "name": "JPAKE.js",
+  "name": "jpake.js",
   "main": "JPAKE.js",
   "author": "Ireneu Pla",
   "description": "Javascript implementation of the JPAKE protocol for Node and the browser.",
