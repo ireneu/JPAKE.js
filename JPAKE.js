@@ -2,7 +2,13 @@
  * JPAKE.js
  */
 
-(function (module, exports, BN, CryptoJS) {
+(function (root, factory) {
+    if (typeof exports === "object") {
+        module.exports = factory(require("bn.js"), require("crypto-js"));
+    } else {
+        root.JPAKE = factory(BN, CryptoJS);
+    }
+}(this, function (BN, CryptoJS) {
     var availableParameterSizes = [80, 112, 128];
     // Check environment
     var isBrowser = typeof window !== 'undefined' && this === window;
@@ -309,9 +315,5 @@
         return CryptoJS.SHA512(K.toString(16)).toString();
     };
 
-    if (isBrowser) {
-        exports.JPAKE = JPAKE;
-    } else {
-        module.exports = exports = JPAKE;
-    }
-})(typeof module === 'undefined' || module, this, BN, CryptoJS);
+    return JPAKE;
+}));
