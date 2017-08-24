@@ -1,14 +1,42 @@
 # JPAKE.js
 
+![](https://img.shields.io/npm/v/jpake.js.svg)
+![](https://img.shields.io/npm/l/jpake.js.svg)
+
 JPAKE.js depends on [CryptoJS](https://code.google.com/archive/p/crypto-js/) for the SHA512 hashing function and on [BN.js](https://github.com/indutny/bn.js) for BigNum manipulation.
 
-Using JPAKE.js on the browser:
+JPAKE.js on the browser:
 ```
 <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/3.1.9-1/core.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/3.1.9-1/x64-core.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/3.1.9-1/sha512.js"></script>
 <script src="https://cdn.rawgit.com/indutny/bn.js/v4.11.8/lib/bn.js"></script>
 <script src="JPAKE.js"></script>
+```
+
+JPAKE.js in Node: (` $ npm install --save jpake.js`)
+
+```
+const JPAKE = require('jpake.js');
+```
+
+Actually using it:
+
+```
+var parameterSize = 80;  // can also be 112 or 128
+var myId = 'alice';
+var alice = new JPAKE('sharedPassword', parameterSize, myId);
+var myFirstStep = alice.firstStep();
+sendToBob(myFirstStep);
+
+var bobsFirstStep = receiveFromBob();
+var mySecondStep = alice.secondStep(bobsFirstStep);
+sendToBob(mySecondStep);
+
+var bobsSecondStep = receiveFromBob();
+var ourStrongSharedKey = alice.thirdStep(bobsSecondStep);  // do not send this!
+
+// now use strong key to encrypt communications
 ```
 
 ## About JPAKE
