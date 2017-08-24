@@ -84,14 +84,114 @@
     }
 
     function JPAKE(password, parameterSize, signer) {
-        this.chosenParameters = getParametersForSize(parameterSize);
-        this.pModulo = BN.red(this.chosenParameters.p);
-        this.qModulo = BN.red(this.chosenParameters.q);
-        this.sharedPassword = new BN(CryptoJS.SHA512(password).toString(), 16);
-        this.signerId = signer;
-        // Check if copy + paste works as expected:
-        assert(this.chosenParameters.p.toRed(this.qModulo).toNumber() === 1);
-        assert(this.chosenParameters.g.toRed(this.pModulo).redPow(this.chosenParameters.q).toNumber() === 1);
+        var chosenParameters = getParametersForSize(parameterSize);
+        var pModulo = BN.red(chosenParameters.p);
+        var qModulo = BN.red(chosenParameters.q);
+        var sharedPassword = new BN(CryptoJS.SHA512(password).toString(), 16);
+        var signerId = signer;
+        var x1, x2, gx1, gx2, gx3, gx4;
+
+        function createZKP(generator, exponent, gx) {
+            assert(!(generator.red || exponent.red || gx.red));
+
+            var q = chosenParameters.q;
+            var rand = new BN(  // [0, q)
+                byteArrayToHexString(
+                    getRandomLowerThan(
+                        hexStringToByteArray(chosenParameters.q.toString(16)))),
+                16
+            );
+            var gr = generator.toRed(pModulo).redPow(rand);  // gr = (generator ** rand) mod p
+            var s = ''.concat(
+                hashBn(generator),
+                hashBn(gr),
+                hashBn(gx),
+                ('0000' + signerId.length.toString(16)).substr(-4),
+                signerId
+            );
+            var h = new BN(CryptoJS.SHA512(s).toString(), 16);
+            var b = (rand.sub(exponent.mul(h))).umod(q);
+            return {
+                'gr': gr.toString(16),
+                'b': b.toString(16),
+                'id': signerId
+            };
+        }
+
+        function verifyZKP(generator, gx, zkp) {
+            assert(!(generator.red || gx.red));
+
+            var gr = new BN(zkp.gr, 16),
+                b = new BN(zkp.b, 16);
+            if (zkp.id === signerId) throw 'Same signer id!';
+            var s = ''.concat(
+                hashBn(generator),
+                hashBn(gr),
+                hashBn(gx),
+                ('0000' + zkp.id.length.toString(16)).substr(-4),
+                zkp.id
+            );
+            var h = new BN(CryptoJS.SHA512(s).toString(), 16);
+            var gb = generator.toRed(pModulo).redPow(b);
+            var y = gx.toRed(pModulo).redPow(h);
+            if (gr.toString(16) !== gb.redMul(y).toString(16)) throw 'Bad Zero knowledge proof!';
+        }
+
+        this.firstStep = function () {
+            var g = chosenParameters.g;
+            x1 = new BN(  // [0, q)
+                byteArrayToHexString(
+                    getRandomLowerThan(
+                        hexStringToByteArray(chosenParameters.q.toString(16)))),
+                16
+            );
+            x2 = new BN(  // [1, q)
+                byteArrayToHexString(
+                    addOneToByteArray(
+                        getRandomLowerThan(
+                            subtractOneToByteArray(
+                                hexStringToByteArray(
+                                    chosenParameters.q.toString(16)))))),
+                16
+            );
+            gx1 = g.toRed(pModulo).redPow(x1);  // gx1 = (g**x1) mod p
+            gx2 = g.toRed(pModulo).redPow(x2);  // gx2 = (g**x2) mod p
+            var zkp_x1 = createZKP(g, x1, gx1.fromRed());
+            var zkp_x2 = createZKP(g, x2, gx2.fromRed());
+            return {
+                'gx1': gx1.toString(16),
+                'gx2': gx2.toString(16),
+                'zkp_x1': zkp_x1,
+                'zkp_x2': zkp_x2
+            };
+        };
+
+        this.secondStep = function (firstStepMessage) {
+            var g = chosenParameters.g;
+            gx3 = new BN(firstStepMessage.gx1, 16);
+            gx4 = new BN(firstStepMessage.gx2, 16);
+            if (gx4.toString(16) === '1') throw 'gx4 is equal to 1!';
+            verifyZKP(g, gx3, firstStepMessage.zkp_x1);
+            verifyZKP(g, gx4, firstStepMessage.zkp_x2);
+            var gA = gx1.redMul(gx3.toRed(pModulo)).redMul(gx4.toRed(pModulo));
+            var eA = x2.mul(sharedPassword).toRed(qModulo).fromRed();
+            var A = gA.redPow(eA);
+            var zkp_A = createZKP(gA.fromRed(), eA, A.fromRed());
+            return {
+                'A': A.toString(16),
+                'zkp_A': zkp_A
+            };
+        };
+
+        this.thirdStep = function (secondStepMessage) {
+            var q = chosenParameters.q,
+                B = (new BN(secondStepMessage.A, 16)).toRed(pModulo);
+            var generator = gx1.redMul(gx2).redMul(gx3.toRed(pModulo));
+            verifyZKP(generator.fromRed(), B.fromRed(), secondStepMessage.zkp_A);
+            var kA = x2.mul(sharedPassword).neg().umod(q);
+            var K = gx4.toRed(pModulo).redPow(kA).redMul(B).redPow(x2);
+            return CryptoJS.SHA512(K.toString(16)).toString();
+        };
     }
 
     function getParametersForSize(parameterSize) {
@@ -212,108 +312,6 @@
         var hashLength = ('0000' + hash.length.toString(16)).substr(-4);
         return hashLength + hash;
     }
-
-    JPAKE.prototype.createZKP = function createZKP(generator, exponent, gx) {
-        assert(!(generator.red || exponent.red || gx.red));
-
-        var q = this.chosenParameters.q;
-        var rand = new BN(  // [0, q)
-            byteArrayToHexString(
-                getRandomLowerThan(
-                    hexStringToByteArray(this.chosenParameters.q.toString(16)))),
-            16
-        );
-        var gr = generator.toRed(this.pModulo).redPow(rand);  // gr = (generator ** rand) mod p
-        var s = ''.concat(
-            hashBn(generator),
-            hashBn(gr),
-            hashBn(gx),
-            ('0000' + this.signerId.length.toString(16)).substr(-4),
-            this.signerId
-        );
-        var h = new BN(CryptoJS.SHA512(s).toString(), 16);
-        var b = (rand.sub(exponent.mul(h))).umod(q);
-        return {
-            'gr': gr.toString(16),
-            'b': b.toString(16),
-            'id': this.signerId
-        };
-    };
-
-    JPAKE.prototype.verifyZKP = function verifyZKP(generator, gx, zkp) {
-        assert(!(generator.red || gx.red));
-
-        var gr = new BN(zkp.gr, 16),
-            b = new BN(zkp.b, 16);
-        if (zkp.id === this.signerId) throw 'Same signer id!';
-        var s = ''.concat(
-            hashBn(generator),
-            hashBn(gr),
-            hashBn(gx),
-            ('0000' + zkp.id.length.toString(16)).substr(-4),
-            zkp.id
-        );
-        var h = new BN(CryptoJS.SHA512(s).toString(), 16);
-        gb = generator.toRed(this.pModulo).redPow(b);
-        var y = gx.toRed(this.pModulo).redPow(h);
-        if (gr.toString(16) !== gb.redMul(y).toString(16)) throw 'Bad Zero knowledge proof!';
-    };
-
-    JPAKE.prototype.firstStep = function () {
-        var g = this.chosenParameters.g;
-        this.x1 = new BN(  // [0, q)
-            byteArrayToHexString(
-                getRandomLowerThan(
-                    hexStringToByteArray(this.chosenParameters.q.toString(16)))),
-            16
-        );
-        this.x2 = new BN(  // [1, q)
-            byteArrayToHexString(
-                addOneToByteArray(
-                    getRandomLowerThan(
-                        subtractOneToByteArray(
-                            hexStringToByteArray(
-                                this.chosenParameters.q.toString(16)))))),
-            16
-        );
-        this.gx1 = g.toRed(this.pModulo).redPow(this.x1);  // gx1 = (g**x1) mod p
-        this.gx2 = g.toRed(this.pModulo).redPow(this.x2);  // gx2 = (g**x2) mod p
-        var zkp_x1 = this.createZKP(g, this.x1, this.gx1.fromRed());
-        var zkp_x2 = this.createZKP(g, this.x2, this.gx2.fromRed());
-        return {
-            'gx1': this.gx1.toString(16),
-            'gx2': this.gx2.toString(16),
-            'zkp_x1': zkp_x1,
-            'zkp_x2': zkp_x2
-        };
-    };
-
-    JPAKE.prototype.secondStep = function (firstStepMessage) {
-        var g = this.chosenParameters.g;
-        this.gx3 = new BN(firstStepMessage.gx1, 16);
-        this.gx4 = new BN(firstStepMessage.gx2, 16);
-        if (this.gx4.toString(16) === '1') throw 'gx4 is equal to 1!';
-        this.verifyZKP(g, this.gx3, firstStepMessage.zkp_x1);
-        this.verifyZKP(g, this.gx4, firstStepMessage.zkp_x2);
-        var gA = this.gx1.redMul(this.gx3.toRed(this.pModulo)).redMul(this.gx4.toRed(this.pModulo));
-        var eA = this.x2.mul(this.sharedPassword).toRed(this.qModulo).fromRed();
-        var A = gA.redPow(eA);
-        var zkp_A = this.createZKP(gA.fromRed(), eA, A.fromRed());
-        return {
-            'A': A.toString(16),
-            'zkp_A': zkp_A
-        };
-    };
-
-    JPAKE.prototype.thirdStep = function (secondStepMessage) {
-        var q = this.chosenParameters.q,
-            B = (new BN(secondStepMessage.A, 16)).toRed(this.pModulo);
-        var generator = this.gx1.redMul(this.gx2).redMul(this.gx3.toRed(this.pModulo));
-        this.verifyZKP(generator.fromRed(), B.fromRed(), secondStepMessage.zkp_A);
-        var kA = this.x2.mul(this.sharedPassword).neg().umod(q);
-        var K = this.gx4.toRed(this.pModulo).redPow(kA).redMul(B).redPow(this.x2);
-        return CryptoJS.SHA512(K.toString(16)).toString();
-    };
 
     return JPAKE;
 }));
