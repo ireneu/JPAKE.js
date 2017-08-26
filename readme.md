@@ -1,7 +1,9 @@
 # JPAKE.js
 
-![](https://img.shields.io/npm/v/jpake.js.svg)
-![](https://img.shields.io/npm/l/jpake.js.svg)
+![Version](https://img.shields.io/npm/v/jpake.js.svg)
+![License](https://img.shields.io/npm/l/jpake.js.svg)
+![Dependency Status](https://img.shields.io/gemnasium/ireneu/JPAKE.js.svg)
+
 
 JPAKE.js depends on [CryptoJS](https://code.google.com/archive/p/crypto-js/) for the SHA512 hashing function and on [BN.js](https://github.com/indutny/bn.js) for BigNum manipulation.
 
