@@ -260,8 +260,8 @@
                 crypto.getRandomValues(browserRandom);
                 return browserRandom;
             } else {  // NodeJS
-                var nodeRandom = new Uint8Array(size * 4);
-                crypto.randomFillSync(nodeRandom);
+                var randomBuffer = crypto.randomBytes(size * 4);
+                var nodeRandom = new Uint8Array(randomBuffer.buffer)
                 return uint8arrayTouint32array(nodeRandom);
             }
         }
