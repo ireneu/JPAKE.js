@@ -16,7 +16,7 @@
     "Crypto"
   ],
   "license": "MIT",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "dependencies": {
     "bn.js": "^4.11.8",
     "crypto-js": "^3.1.9-1"
