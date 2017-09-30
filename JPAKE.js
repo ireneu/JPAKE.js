@@ -14,6 +14,10 @@
     var isBrowser = typeof window !== 'undefined' && this === window;
     // Make necessary Crypto
     var crypto;
+    var hashers = {
+        'sha256': CryptoJS.SHA256,
+        'sha512': CryptoJS.SHA512
+    };
     if (isBrowser) {
         crypto = window.crypto || window.msCrypto;
         assert(typeof crypto !== 'undefined', 'No browser crypto support!');
@@ -83,13 +87,24 @@
         });
     }
 
-    function JPAKE(password, parameterSize, signer) {
-        var chosenParameters = getParametersForSize(parameterSize);
+    function JPAKE(password, signer, options) {
+        var defaultOptions = {
+            'keyHasher': 'sha512',
+            'paramSize': 128
+        };
+        var mergedOptions = Object.assign(defaultOptions, options);
+
+        var hasher = hashers[mergedOptions.keyHasher.toLowerCase()];
+        assert(hasher, 'CryptoJS is missing hasher: ' + mergedOptions.keyHasher);
+
+        var chosenParameters = getParametersForSize(mergedOptions.paramSize);
         var pModulo = BN.red(chosenParameters.p);
         var qModulo = BN.red(chosenParameters.q);
+
         var sharedPassword = new BN(CryptoJS.SHA512(password).toString(), 16);
         var signerId = signer;
         var x1, x2, gx1, gx2, gx3, gx4;
+
 
         function createZKP(generator, exponent, gx) {
             assert(!(generator.red || exponent.red || gx.red));
@@ -190,7 +205,7 @@
             verifyZKP(generator.fromRed(), B.fromRed(), secondStepMessage.zkp_A);
             var kA = x2.mul(sharedPassword).neg().umod(q);
             var K = gx4.toRed(pModulo).redPow(kA).redMul(B).redPow(x2);
-            return CryptoJS.SHA512(K.toString(16)).toString();
+            return hasher(K.toString(16)).toString();
         };
     }
 
