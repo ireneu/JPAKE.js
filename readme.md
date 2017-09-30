@@ -25,9 +25,12 @@ const JPAKE = require('jpake.js');
 Actually using it:
 
 ```
-var parameterSize = 80;  // can also be 112 or 128
 var myId = 'alice';
-var alice = new JPAKE('sharedPassword', parameterSize, myId);
+var options = {
+    'paramSize': 128,
+    'keyHasher': 'sha512'
+}
+var alice = new JPAKE('sharedPassword', myId, options);
 var myFirstStep = alice.firstStep();
 sendToBob(myFirstStep);
 
@@ -40,6 +43,12 @@ var ourStrongSharedKey = alice.thirdStep(bobsSecondStep);  // do not send this!
 
 // now use strong key to encrypt communications
 ```
+
+Options:
+* `'paramSize'`: `80`, `112` or `128`. Default: `128`
+* `'keyHasher'`: `'sha256'` or `'sha512'`. Default: `'sha512'`
+
+**Note:** if using the SHA256 hashing function on the browser, you need to include the sha256.js (from crypto-js) with the other scripts. No action needed on Node.
 
 ## About JPAKE
 
